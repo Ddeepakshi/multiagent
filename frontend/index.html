@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-top: 40px;
+            font-size: 28px;
+            color: #38bdf8;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .input-area {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            width: 90%;
+            max-width: 700px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #1e293b;
+            color: #e2e8f0;
+            font-size: 15px;
+            outline: none;
+        }
+
+        .input-area input:focus {
+            border-color: #38bdf8;
+        }
+
+        .input-area button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background: #38bdf8;
+            color: #0f172a;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        .input-area button:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+
+        .input-area button:hover:not(:disabled) {
+            background: #7dd3fc;
+        }
+
+        .loading {
+            margin-top: 20px;
+            color: #38bdf8;
+            display: none;
+            font-size: 14px;
+        }
+
+        .loading.show { display: block; }
+
+        .results {
+            margin-top: 30px;
+            width: 90%;
+            max-width: 700px;
+        }
+
+        .step {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .step-header {
+            font-weight: 600;
+            color: #38bdf8;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .step-body {
+            color: #cbd5e1;
+            font-size: 14px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .final-response {
+            background: #1e293b;
+            border: 2px solid #38bdf8;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 16px;
+            margin-bottom: 40px;
+        }
+
+        .final-response .step-header {
+            font-size: 16px;
+            color: #4ade80;
+        }
+
+        .error {
+            color: #f87171;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error.show { display: block; }
+    </style>
+</head>
+<body>
+    <h1>Multi-Agent AI System</h1>
+    <p class="subtitle">Planner &rarr; Worker &rarr; Reviewer loop</p>
+
+    <div class="input-area">
+        <input type="text" id="queryInput" placeholder="Enter your query..." />
+        <button id="runBtn" onclick="runQuery()">Run</button>
+    </div>
+
+    <p class="loading" id="loading">Running agents... this may take a moment.</p>
+    <p class="error" id="error"></p>
+
+    <div class="results" id="results"></div>
+
+    <script>
+        const API_URL = "http://localhost:8000/run";
+
+        document.getElementById("queryInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") runQuery();
+        });
+
+        async function runQuery() {
+            const input = document.getElementById("queryInput");
+            const query = input.value.trim();
+            if (!query) return;
+
+            const btn = document.getElementById("runBtn");
+            const loading = document.getElementById("loading");
+            const error = document.getElementById("error");
+            const results = document.getElementById("results");
+
+            btn.disabled = true;
+            loading.classList.add("show");
+            error.classList.remove("show");
+            results.innerHTML = "";
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query }),
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.detail || `Server error: ${res.status}`);
+                }
+
+                const data = await res.json();
+
+                // Show agent steps
+                if (data.steps) {
+                    data.steps.forEach((step) => {
+                        const div = document.createElement("div");
+                        div.className = "step";
+                        div.innerHTML = `
+                            <div class="step-header">${step.agent}</div>
+                            <div class="step-body">${escapeHtml(step.output)}</div>
+                        `;
+                        results.appendChild(div);
+                    });
+                }
+
+                // Show final response
+                const finalDiv = document.createElement("div");
+                finalDiv.className = "final-response";
+                finalDiv.innerHTML = `
+                    <div class="step-header">Final Response</div>
+                    <div class="step-body">${escapeHtml(data.response)}</div>
+                `;
+                results.appendChild(finalDiv);
+
+            } catch (err) {
+                error.textContent = err.message;
+                error.classList.add("show");
+            } finally {
+                btn.disabled = false;
+                loading.classList.remove("show");
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
